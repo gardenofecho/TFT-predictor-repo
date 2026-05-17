@@ -77,10 +77,10 @@ for i, ticker in enumerate(CFG.tickers):
             label=f'{CFG.horizon}-week TFT Forecast from predicted returns', color='red', linewidth=1)
     
     # Formatting matching your Kaggle notebook style
-    ax.set_title(f"{ticker} {CFG.horizon}-week TFT Forecast from predicted returns", fontsize=10)
-    ax.legend(loc='upper left', fontsize=8)
+    ax.set_title(f"{ticker} {CFG.horizon}-week TFT Forecast from predicted returns", fontsize=18)
+    ax.legend(loc='upper left', fontsize=14)
     ax.grid(True, linestyle=':', alpha=0.6)
-    ax.tick_params(axis='both', which='major', labelsize=8)
+    ax.tick_params(axis='both', which='major', labelsize=14)
 
 plt.tight_layout()
 
