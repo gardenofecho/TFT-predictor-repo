@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import yfinance as yf
 from dataclasses import dataclass
 
 # 1. Page Configuration & Stylings
@@ -27,30 +28,35 @@ vix_level = 15.0         # Default baseline target for VIX close
 spy_return = 0.0         # Default baseline target for weekly SPY return
 t_yield = 0.0            # Default baseline target for 10Y Yield return
 
-# 4. Data Generation & Model Simulation Infrastructure 
+# 4. Data Generation & Model Simulation Infrastructure Using Live yfinance
 def load_historical_and_forecast_data():
-    date_range = pd.date_range(end="2026-05-15", periods=200, freq="W-FRI")
-    future_range = pd.date_range(start="2026-05-22", periods=CFG.horizon, freq="W-FRI")
-    
     plot_history = {}
     forecast_hicker = {}
     
-    # Simulating base paths for SPY
-    spy_base = 350 + np.cumsum(np.random.normal(0.5, 3.0, len(date_range)))
-    plot_history['SPY'] = pd.Series(spy_base, index=date_range)
-    spy_future = spy_base[-1] + np.cumsum(np.random.normal(0.2, 4.0, CFG.horizon)) + (spy_return * 10)
-    forecast_hicker['SPY'] = pd.Series(spy_future, index=future_range)
-    
-    # Simulating base paths for GLD
-    gld_base = 150 + np.cumsum(np.random.normal(0.2, 1.5, len(date_range)))
-    plot_history['GLD'] = pd.Series(gld_base, index=date_range)
-    gld_future = gld_base[-1] + np.cumsum(np.random.normal(0.1, 2.0, CFG.horizon)) - (t_yield * 5) + (vix_level * 0.05)
-    forecast_hicker['GLD'] = pd.Series(gld_future, index=future_range)
-    
+    for ticker in CFG.tickers:
+        # Fetch real weekly data from Yahoo Finance
+        ticker_obj = yf.Ticker(ticker)
+        historical_df = ticker_obj.history(start=CFG.start, interval="1wk")
+        
+        # Extract the Closing price series
+        plot_history[ticker] = historical_df['Close']
+        
+        # Use the latest real price as the baseline anchor for predictions
+        last_price = historical_df['Close'].iloc[-1]
+        
+        # Generate future timeline index
+        future_dates = pd.date_range(start=historical_df.index[-1] + pd.Timedelta(weeks=1), periods=CFG.horizon, freq="W-FRI")
+        
+        # --- PLACEHOLDER FOR YOUR REAL TFT MODEL PREDICTIONS ---
+        # Simulates a future trajectory starting directly from the live market price
+        simulated_predictions = last_price + np.cumsum(np.random.normal(0, last_price * 0.01, CFG.horizon))
+        forecast_hicker[ticker] = pd.Series(simulated_predictions, index=future_dates)
+        
     return plot_history, forecast_hicker
 
 # Call the function to instantiate global data variables
-plot_history, forecast_hicker = load_historical_and_forecast_data()
+with st.spinner("Fetching live Yahoo Finance data and running engine..."):
+    plot_history, forecast_hicker = load_historical_and_forecast_data()
 
 # --- 5. ADD INTERACTIVE LOOKBACK SELECTOR ---
 st.write("---")
@@ -61,7 +67,7 @@ zoom_weeks = st.slider("Historical Lookback Window (Weeks)", min_value=12, max_v
 st.subheader("🔮 SPY and GLD Forecast Paths")
 
 # Set up matplotlib figure identical to Kaggle notebook setup
-fig, axes = plt.subplots(len(CFG.tickers), 1, figsize=(12, 7), sharex=True)
+fig, axes = plt.subplots(len(CFG.tickers), 1, figsize=(12, 8), sharex=True)
 
 for i, ticker in enumerate(CFG.tickers):
     ax = axes[i]
@@ -74,10 +80,10 @@ for i, ticker in enumerate(CFG.tickers):
     
     # Line 2: Future TFT Forecasts
     ax.plot(forecast_hicker[ticker].index, forecast_hicker[ticker].values, 
-            label=f'{CFG.horizon}-week TFT Forecast from predicted returns', color='red', linewidth=1)
+            label=f'{CFG.horizon}-week TFT Forecast from predicted returns', color='red', linewidth=1.5)
     
-    # Formatting matching your Kaggle notebook style
-    ax.set_title(f"{ticker} {CFG.horizon}-week TFT Forecast from predicted returns", fontsize=18)
+    # Formatting with enlarged high-visibility fonts
+    ax.set_title(f"{ticker} {CFG.horizon}-week TFT Forecast from predicted returns", fontsize=18, fontweight='bold')
     ax.legend(loc='upper left', fontsize=14)
     ax.grid(True, linestyle=':', alpha=0.6)
     ax.tick_params(axis='both', which='major', labelsize=14)
