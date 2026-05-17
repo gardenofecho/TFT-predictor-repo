@@ -11,7 +11,7 @@ from pytorch_forecasting import TemporalFusionTransformer
 st.set_page_config(page_title="Temporal Fusion Transformers Forecast Engine", layout="wide")
 plt.style.use("seaborn-v0_8-whitegrid")
 
-st.title("📊 Live TFT Multi-Asset Forecast Engine")
+st.title("📊 Temporal Fusion Transformers Forecast Engine")
 st.caption("This dashboard generates technical indicators and applies your trained Temporal Fusion Transformer (TFT) model to project future paths.")
 
 # 2. Hardcoded Config Matching Kaggle Setup
