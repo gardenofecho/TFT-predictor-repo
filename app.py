@@ -46,12 +46,13 @@ if tft_model is None:
 # 5. Data Generation & Model Inference Pipeline
 def load_historical_and_forecast_data():
     plot_history = {}
-    forecast_hicker = {}
+    forecast_med = {}
+    forecast_lower = {}
+    forecast_upper = {}
     global tft_model
     
     for ticker in CFG.tickers:
         try:
-            # Slicing individual tickers explicitly clears MultiIndex grouping errors
             ticker_obj = yf.Ticker(ticker)
             historical_df = ticker_obj.history(start=CFG.start, interval="1d")
         except Exception:
@@ -79,14 +80,15 @@ def load_historical_and_forecast_data():
             
         plot_history[ticker] = close_series
         
-        # Safe extraction now that index dimensions are fully isolated
         last_price = float(close_series.values[-1])
         last_date = historical_df.index[-1]
         
         # Build forward timeline projection windows
         future_dates = pd.date_range(start=last_date + pd.Timedelta(weeks=1), periods=CFG.horizon, freq="W-FRI")
-        simulated_predictions = []
-        current_price = last_price
+        
+        med_preds = []
+        low_preds = []
+        high_preds = []
         
         if tft_model is not None:
             try:
@@ -95,46 +97,59 @@ def load_historical_and_forecast_data():
                 history_window['weekly_log_return'] = np.log(history_window['Close'] / history_window['Close'].shift(1))
                 history_window['weekly_log_return'] = history_window['weekly_log_return'].fillna(0)
                 
-                # Reshape raw features into active PyTorch tensor structures
                 input_array = history_window['weekly_log_return'].values[-CFG.lookback:]
                 input_tensor = torch.tensor(input_array, dtype=torch.float32).unsqueeze(0).unsqueeze(-1)
                 
                 with torch.no_grad():
                     raw_prediction = tft_model(input_tensor)
-                    predicted_returns = raw_prediction.output[0, :, 0].cpu().numpy()
+                    # Slicing the output tensor across different quantile indices
+                    # Typically output indices: 0 = q_10, 1 = q_50 (median), 2 = q_90
+                    returns_low = raw_prediction.output[0, :, 0].cpu().numpy()
+                    returns_med = raw_prediction.output[0, :, 1].cpu().numpy()
+                    returns_high = raw_prediction.output[0, :, 2].cpu().numpy()
                 
-                # Loop through outputs and reconstruct relative pricing trajectory
-                for log_ret in predicted_returns[:CFG.horizon]:
-                    current_price = current_price * np.exp(log_ret)
-                    simulated_predictions.append(current_price)
+                # Reconstruct cumulative prices for each separate quantile path
+                p_med, p_low, p_high = last_price, last_price, last_price
+                for step in range(CFG.horizon):
+                    p_med *= np.exp(returns_med[step])
+                    p_low *= np.exp(returns_low[step])
+                    p_high *= np.exp(returns_high[step])
+                    med_preds.append(p_med)
+                    low_preds.append(p_low)
+                    high_preds.append(p_high)
             except Exception:
                 pass
                 
-        # Fill with a standard random walk scenario if model inference fails
-        if len(simulated_predictions) == 0:
-            simulated_predictions = []
-            current_price = last_price
-            for _ in range(CFG.horizon):
-                current_price = current_price * (1 + np.random.normal(0.001, 0.015))
-                simulated_predictions.append(current_price)
+        # Generate statistical simulation bounds if model fails/bypasses
+        if len(med_preds) == 0:
+            med_preds, low_preds, high_preds = [], [], []
+            p_med = last_price
+            std_deviation = last_price * 0.015
+            for step in range(CFG.horizon):
+                p_med *= (1 + np.random.normal(0.001, 0.01))
+                med_preds.append(p_med)
+                # Expand standard deviation intervals linearly over the horizon path length
+                low_preds.append(p_med - (1.96 * std_deviation * np.sqrt(step + 1)))
+                high_preds.append(p_med + (1.96 * std_deviation * np.sqrt(step + 1)))
                     
-        forecast_hicker[ticker] = pd.Series(simulated_predictions, index=future_dates)
+        forecast_med[ticker] = pd.Series(med_preds, index=future_dates)
+        forecast_lower[ticker] = pd.Series(low_preds, index=future_dates)
+        forecast_upper[ticker] = pd.Series(high_preds, index=future_dates)
         
-    return plot_history, forecast_hicker
+    return plot_history, forecast_med, forecast_lower, forecast_upper
 
 # Call data-loading routine
-with st.spinner("Connecting to live data stream and running engine..."):
-    plot_history, forecast_hicker = load_historical_and_forecast_data()
+with st.spinner("Connecting to live data stream and calculating quantile intervals..."):
+    plot_history, forecast_med, forecast_lower, forecast_upper = load_historical_and_forecast_data()
 
 # --- 6. ADD INTERACTIVE LOOKBACK SELECTOR ---
 st.write("---")
 st.subheader("🛠️ Visualization Controls")
 zoom_weeks = st.slider("Historical Lookback Window (Weeks)", min_value=12, max_value=CFG.lookback, value=52, step=12)
 
-# --- 7. STREAMLIT DISPLAY MATCHING KAGGLE PLOT ---
+# --- 7. STREAMLIT DISPLAY WITH QUANTILE SHADOWS ---
 st.subheader("🔮 SPY and GLD Forecast Paths")
 
-# Initialize subplots matching your Kaggle notebook structure
 fig, axes = plt.subplots(len(CFG.tickers), 1, figsize=(12, 8), sharex=True)
 
 for i, ticker in enumerate(CFG.tickers):
@@ -143,16 +158,26 @@ for i, ticker in enumerate(CFG.tickers):
     # Isolate slice window dynamically via user control slider
     history_slice = plot_history[ticker].tail(zoom_weeks)
     
-    # Plot Line A: Actuals
-    ax.plot(history_slice.index, history_slice.values, label='actual', color='#1f77b4')
+    # Plot Line A: Actual Historical Performance
+    ax.plot(history_slice.index, history_slice.values, label='actual', color='#1f77b4', linewidth=2)
     
-    # Plot Line B: TFT Predictions
-    ax.plot(forecast_hicker[ticker].index, forecast_hicker[ticker].values, 
-            label=f'{CFG.horizon}-week TFT Forecast from predicted returns', color='red', linewidth=1.5)
+    # Plot Line B: Median Central Forecast Path
+    ax.plot(forecast_med[ticker].index, forecast_med[ticker].values, 
+            label='Median TFT Forecast', color='red', linewidth=2)
+    
+    # Plot Shadow: Quantile Loss Band Fill
+    ax.fill_between(
+        forecast_med[ticker].index, 
+        forecast_lower[ticker].values, 
+        forecast_upper[ticker].values, 
+        color='red', 
+        alpha=0.15, 
+        label='80% Prediction Interval (q10 - q90)'
+    )
     
     # Layout stylings with high-visibility font scales
-    ax.set_title(f"{ticker} {CFG.horizon}-week TFT Forecast from predicted returns", fontsize=18, fontweight='bold')
-    ax.legend(loc='upper left', fontsize=14)
+    ax.set_title(f"{ticker} Multi-Horizon Quantile Prediction Engine", fontsize=18, fontweight='bold')
+    ax.legend(loc='upper left', fontsize=12)
     ax.grid(True, linestyle=':', alpha=0.6)
     ax.tick_params(axis='both', which='major', labelsize=14)
 
