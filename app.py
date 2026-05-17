@@ -58,12 +58,12 @@ def load_historical_and_forecast_data():
         if isinstance(historical_df.columns, pd.MultiIndex):
             historical_df.columns = historical_df.columns.get_level_values(0)
             
+        # CRITICAL FIX: Explicitly enforce DatetimeIndex before executing resample operation
+        historical_df.index = pd.to_datetime(historical_df.index).tz_localize(None)
+            
         # Convert raw daily history to clean weekly Friday intervals matching training
         historical_df = historical_df.resample('W-FRI').last()
         historical_df = historical_df.dropna(subset=['Close'])
-        
-        # Remove timezone annotations to avoid time-series comparison warnings
-        historical_df.index = pd.to_datetime(historical_df.index).tz_localize(None)
         
         # Extract true closing data series array
         close_series = historical_df['Close'].squeeze()
