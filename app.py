@@ -55,6 +55,18 @@ with st.spinner("Executing TFT multi-step prediction engine..."):
     plot_history, forecast_hicker = load_historical_and_forecast_data()
 
 # --- 5. STREAMLIT DISPLAY MATCHING KAGGLE PLOT ---
+# --- ADD INTERACTIVE LOOKBACK SELECTOR ---
+st.write("---")
+st.subheader("🛠️ Visualization Controls")
+
+# Interactive slider to change the historical timeline view width
+zoom_weeks = st.slider("Historical Lookback Window (Weeks)", min_value=12, max_value=CFG.lookback, value=52, step=12)
+
+# Then, inside your plotting loop, update the history slicing line:
+# Replace: history_slice = plot_history[ticker].tail(156)
+# With this:
+history_slice = plot_history[ticker].tail(zoom_weeks)
+
 st.subheader("🔮 SPY and GLD Forecast Paths")
 
 # Set up matplotlib figure identical to Kaggle notebook setup
@@ -64,7 +76,7 @@ for i, ticker in enumerate(CFG.tickers):
     ax = axes[i]
     
     # Slice the trailing historical context to mimic notebook look
-    history_slice = plot_history[ticker].tail(156)
+    history_slice = plot_history[ticker].tail(zoom_weeks)
     
     # Line 1: Historical Actuals
     ax.plot(history_slice.index, history_slice.values, label='actual', color='#1f77b4')
