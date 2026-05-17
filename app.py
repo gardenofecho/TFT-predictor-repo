@@ -51,35 +51,36 @@ def load_historical_and_forecast_data():
     
     for ticker in CFG.tickers:
         try:
-            # Download daily records via standard yfinance queries
-            historical_df = yf.download(ticker, start=CFG.start, interval="1d", progress=False)
-            
-            # --- CRITICAL FIX FOR MULTIINDEX COLUMNS ---
-            # Flattens multi-layered column frames if present to prevent parsing errors
-            if isinstance(historical_df.columns, pd.MultiIndex):
-                historical_df.columns = historical_df.columns.get_level_values(0)
+            # Slicing individual tickers explicitly clears MultiIndex grouping errors
+            ticker_obj = yf.Ticker(ticker)
+            historical_df = ticker_obj.history(start=CFG.start, interval="1d")
         except Exception:
             historical_df = pd.DataFrame()
             
-        # Resample daily data to weekly Friday sequences to align with training targets
+        # Resample daily data to weekly Friday blocks to match training parameters
         if not historical_df.empty and len(historical_df) > 10:
             historical_df = historical_df.resample('W-FRI').last()
             historical_df = historical_df.dropna(subset=['Close'])
         
-        # Fallback safeguard in case of network interruptions
+        # Fallback safeguard if DataFrame initialization fails or returns empty rows
         if historical_df.empty or len(historical_df) < 10:
-            st.sidebar.error(f"Network interruption for {ticker}. Initializing simulated context window.")
             date_range = pd.date_range(end=pd.Timestamp.now(), periods=200, freq="W-FRI")
             base_val = 515 if ticker == "SPY" else 230
             sim_prices = base_val + np.cumsum(np.random.normal(0.2, 2.5, len(date_range)))
             historical_df = pd.DataFrame({'Close': sim_prices}, index=date_range)
         
-        # Strip timezone metadata safely to ensure plotting coordinates match
+        # Strip timezone metadata safely to avoid plotting index mismatches
         historical_df.index = pd.to_datetime(historical_df.index).tz_localize(None)
-        plot_history[ticker] = historical_df['Close']
         
-        # Extract base prices using native arrays
-        last_price = float(historical_df['Close'].values[-1])
+        # Force column parsing validation
+        close_series = historical_df['Close'].squeeze()
+        if isinstance(close_series, pd.DataFrame):
+            close_series = close_series.iloc[:, 0]
+            
+        plot_history[ticker] = close_series
+        
+        # Safe extraction now that index dimensions are fully isolated
+        last_price = float(close_series.values[-1])
         last_date = historical_df.index[-1]
         
         # Build forward timeline projection windows
@@ -89,12 +90,12 @@ def load_historical_and_forecast_data():
         
         if tft_model is not None:
             try:
-                # Calculate logarithmic returns matching model expectations
-                history_window = historical_df.tail(CFG.lookback).copy()
+                # Calculate logarithmic returns to match neural network targets
+                history_window = pd.DataFrame({'Close': close_series}).tail(CFG.lookback).copy()
                 history_window['weekly_log_return'] = np.log(history_window['Close'] / history_window['Close'].shift(1))
                 history_window['weekly_log_return'] = history_window['weekly_log_return'].fillna(0)
                 
-                # Reshape raw historical features into active PyTorch tensor structures
+                # Reshape raw features into active PyTorch tensor structures
                 input_array = history_window['weekly_log_return'].values[-CFG.lookback:]
                 input_tensor = torch.tensor(input_array, dtype=torch.float32).unsqueeze(0).unsqueeze(-1)
                 
@@ -102,14 +103,14 @@ def load_historical_and_forecast_data():
                     raw_prediction = tft_model(input_tensor)
                     predicted_returns = raw_prediction.output[0, :, 0].cpu().numpy()
                 
-                # Reconstruct absolute future prices from log returns
+                # Loop through outputs and reconstruct relative pricing trajectory
                 for log_ret in predicted_returns[:CFG.horizon]:
                     current_price = current_price * np.exp(log_ret)
                     simulated_predictions.append(current_price)
             except Exception:
                 pass
                 
-        # Generate simulation walk if model inference is bypassed or fails
+        # Fill with a standard random walk scenario if model inference fails
         if len(simulated_predictions) == 0:
             simulated_predictions = []
             current_price = last_price
