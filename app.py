@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pytorch_forecasting import TemporalFusionTransformer
 
 # 1. Page Configuration & Stylings
-st.set_page_config(page_title="Temporal Fusion Transformers Forecast Engine", layout="wide")
+st.set_page_config(page_title="Temporal Fusion Transformers Forecast", layout="wide")
 plt.style.use("seaborn-v0_8-whitegrid")
 
 st.title("📊 Temporal Fusion Transformers Forecast Engine")
@@ -17,7 +17,7 @@ st.caption("This dashboard generates technical indicators and applies your train
 # 2. Hardcoded Config Matching Kaggle Setup
 @dataclass
 class Config:
-    tickers: tuple[str, ...] = ("SPY", "GLD")
+    tickers: tuple[str, ...] = ("qqq", "GLD")
     start: str = "2010-01-01"
     lookback: int = 156
     horizon: int = 12
