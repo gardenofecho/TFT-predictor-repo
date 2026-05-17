@@ -18,7 +18,7 @@ st.caption("This dashboard generates technical indicators and applies your train
 @dataclass
 class Config:
     tickers: tuple[str, ...] = ("SPY", "GLD")
-    start: str = "2010-01-01"
+    start: str = "2000-01-01"
     lookback: int = 156
     horizon: int = 12
 
