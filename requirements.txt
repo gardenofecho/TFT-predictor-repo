@@ -1,7 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 streamlit>=1.35.0
 pandas>=2.0.0
 numpy>=1.24.3,<2.0.0
 matplotlib>=3.7.0
-torch==2.2.2 --extra-index-url https://download.pytorch.org/whl/cpu
-lightning==2.2.2
-pytorch-forecasting==1.1.1
+torch>=2.9.0
+lightning>=2.4.0
+pytorch-forecasting>=1.1.1
