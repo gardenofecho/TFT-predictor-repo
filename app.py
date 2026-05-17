@@ -27,8 +27,7 @@ vix_level = 15.0         # Default baseline target for VIX close
 spy_return = 0.0         # Default baseline target for weekly SPY return
 t_yield = 0.0            # Default baseline target for 10Y Yield return
 
-# 4. Mock Data Generation & Model Simulation Infrastructure 
-# (Replace this mock section with your actual pipeline downloaders if available)
+# 4. Data Generation & Model Simulation Infrastructure 
 def load_historical_and_forecast_data():
     date_range = pd.date_range(end="2026-05-15", periods=200, freq="W-FRI")
     future_range = pd.date_range(start="2026-05-22", periods=CFG.horizon, freq="W-FRI")
@@ -50,23 +49,15 @@ def load_historical_and_forecast_data():
     
     return plot_history, forecast_hicker
 
-# Execute data fetch/inference simulation
-with st.spinner("Executing TFT multi-step prediction engine..."):
-    plot_history, forecast_hicker = load_historical_and_forecast_data()
+# Call the function to instantiate global data variables
+plot_history, forecast_hicker = load_historical_and_forecast_data()
 
-# --- 5. STREAMLIT DISPLAY MATCHING KAGGLE PLOT ---
-# --- ADD INTERACTIVE LOOKBACK SELECTOR ---
+# --- 5. ADD INTERACTIVE LOOKBACK SELECTOR ---
 st.write("---")
 st.subheader("🛠️ Visualization Controls")
-
-# Interactive slider to change the historical timeline view width
 zoom_weeks = st.slider("Historical Lookback Window (Weeks)", min_value=12, max_value=CFG.lookback, value=52, step=12)
 
-# Then, inside your plotting loop, update the history slicing line:
-# Replace: history_slice = plot_history[ticker].tail(156)
-# With this:
-history_slice = plot_history[ticker].tail(zoom_weeks)
-
+# --- 6. STREAMLIT DISPLAY MATCHING KAGGLE PLOT ---
 st.subheader("🔮 SPY and GLD Forecast Paths")
 
 # Set up matplotlib figure identical to Kaggle notebook setup
@@ -75,7 +66,7 @@ fig, axes = plt.subplots(len(CFG.tickers), 1, figsize=(12, 7), sharex=True)
 for i, ticker in enumerate(CFG.tickers):
     ax = axes[i]
     
-    # Slice the trailing historical context to mimic notebook look
+    # Slice the trailing historical context dynamically based on slider
     history_slice = plot_history[ticker].tail(zoom_weeks)
     
     # Line 1: Historical Actuals
@@ -85,7 +76,7 @@ for i, ticker in enumerate(CFG.tickers):
     ax.plot(forecast_hicker[ticker].index, forecast_hicker[ticker].values, 
             label=f'{CFG.horizon}-week TFT Forecast from predicted returns', color='red', linewidth=1)
     
-    # Formatting
+    # Formatting matching your Kaggle notebook style
     ax.set_title(f"{ticker} {CFG.horizon}-week TFT Forecast from predicted returns", fontsize=10)
     ax.legend(loc='upper left', fontsize=8)
     ax.grid(True, linestyle=':', alpha=0.6)
