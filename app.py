@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pytorch_forecasting import TemporalFusionTransformer
 
 # 1. Page Configuration & Stylings
-st.set_page_config(page_title="Live TFT Multi-Asset Forecast Engine", layout="wide")
+st.set_page_config(page_title="Temporal Fusion Transformers Forecast Engine", layout="wide")
 plt.style.use("seaborn-v0_8-whitegrid")
 
 st.title("📊 Live TFT Multi-Asset Forecast Engine")
