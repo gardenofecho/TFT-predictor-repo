@@ -57,11 +57,8 @@ def load_historical_and_forecast_data():
         # Ensure we clear out empty fields or incomplete trailing rows
         historical_df = historical_df.dropna(subset=['Close'])
         
-        # Safely normalize timezones dynamically without breaking if already naive
-        if historical_df.index.tz is not None:
-            historical_df.index = historical_df.index.tz_convert(None)
-        else:
-            historical_df.index = historical_df.index.tz_localize(None)
+        # Safely normalize timezones dynamically by stripping timezone metadata directly
+        historical_df.index = pd.to_datetime(historical_df.index).tz_localize(None)
             
         plot_history[ticker] = historical_df['Close']
         
