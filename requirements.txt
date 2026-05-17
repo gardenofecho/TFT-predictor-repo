@@ -6,3 +6,4 @@ matplotlib>=3.7.0
 torch>=2.9.0
 lightning>=2.4.0
 pytorch-forecasting>=1.1.1
+yfinance
