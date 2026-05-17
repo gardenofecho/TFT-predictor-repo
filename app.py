@@ -47,6 +47,7 @@ if tft_model is None:
 def load_historical_and_forecast_data():
     plot_history = {}
     forecast_hicker = {}
+    global tft_model
     
     for ticker in CFG.tickers:
         # Fetch real weekly data from Yahoo Finance
@@ -56,8 +57,12 @@ def load_historical_and_forecast_data():
         # Ensure we clear out empty fields or incomplete trailing rows
         historical_df = historical_df.dropna(subset=['Close'])
         
-        # Extract the real Closing price series (strip timezones to fix the pandas IndexError)
-        historical_df.index = historical_df.index.tz_localize(None)
+        # Safely normalize timezones dynamically without breaking if already naive
+        if historical_df.index.tz is not None:
+            historical_df.index = historical_df.index.tz_convert(None)
+        else:
+            historical_df.index = historical_df.index.tz_localize(None)
+            
         plot_history[ticker] = historical_df['Close']
         
         last_price = float(historical_df['Close'].iloc[-1])
