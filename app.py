@@ -52,25 +52,16 @@ def load_historical_and_forecast_data():
     global tft_model
     
     for ticker in CFG.tickers:
-        # Download raw daily structure configurations
-        historical_df = yf.download(ticker, start=CFG.start, interval="1d", progress=False)
+        # CRITICAL FIX: multi_level_index=False strips the sub-ticker header level instantly
+        historical_df = yf.download(ticker, start=CFG.start, interval="1d", multi_level_index=False, progress=False)
         
-        # --- ROBUST SINGLE LEVEL COLUMN RECONSTRUCTION ---
-        # Explicitly flatten column structures to clear yfinance multi-index nesting
-        if isinstance(historical_df.columns, pd.MultiIndex):
-            historical_df.columns = historical_df.columns.get_level_values(0)
-        else:
-            historical_df.columns = [str(col) for col in historical_df.columns]
-            
-        # Standardize naming conventions across pandas dataframes
-        historical_df = historical_df.rename(columns=str.capitalize)
-        if 'Close' not in historical_df.columns and 'Adj close' in historical_df.columns:
-            historical_df = historical_df.rename(columns={'Adj close': 'Close'})
-            
-        # Ensure that temporal index arrays carry native datetime shapes
+        # Enforce uppercase standard column tracking to handle API variations safely
+        historical_df.columns = [str(col).strip().capitalize() for col in historical_df.columns]
+        
+        # Explicitly apply native DatetimeIndex metadata layout
         historical_df.index = pd.to_datetime(historical_df.index).tz_localize(None)
             
-        # Perform downstream resampling conversions into weekly intervals
+        # Convert raw daily history to clean weekly Friday intervals matching training
         historical_df = historical_df.resample('W-FRI').last()
         historical_df = historical_df.dropna(subset=['Close'])
         
@@ -81,15 +72,15 @@ def load_historical_and_forecast_data():
             sim_prices = base_val + np.cumsum(np.random.normal(0.2, 2.5, len(date_range)))
             historical_df = pd.DataFrame({'Close': sim_prices}, index=date_range)
         
-        # Isolate historical array records
-        close_series = historical_df['Close'].squeeze()
+        # Isolate historical series arrays
+        close_series = historical_df['Close']
         plot_history[ticker] = close_series
         
         # Safe extraction now that row boundaries are explicitly confirmed
         last_price = float(close_series.iloc[-1])
         last_date = historical_df.index[-1]
         
-        # Build forward timeline projection windows
+        # Build forward timeline prediction windows
         future_dates = pd.date_range(start=last_date + pd.Timedelta(weeks=1), periods=CFG.horizon, freq="W-FRI")
         
         med_preds = []
