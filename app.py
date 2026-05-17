@@ -17,7 +17,7 @@ st.caption("This dashboard generates technical indicators and applies your train
 # 2. Hardcoded Config Matching Kaggle Setup
 @dataclass
 class Config:
-    tickers: tuple[str, ...] = ("qqq", "GLD")
+    tickers: tuple[str, ...] = ("SPY", "GLD")
     start: str = "2010-01-01"
     lookback: int = 156
     horizon: int = 12
@@ -150,7 +150,7 @@ st.subheader("🛠️ Visualization Controls")
 zoom_weeks = st.slider("Historical Lookback Window (Weeks)", min_value=12, max_value=CFG.lookback, value=52, step=12)
 
 # --- 7. STREAMLIT DISPLAY WITH QUANTILE SHADOWS ---
-st.subheader("🔮 SPY and GLD Forecast Paths")
+st.subheader("🔮Forecast Paths")
 
 fig, axes = plt.subplots(len(CFG.tickers), 1, figsize=(12, 8), sharex=True)
 
