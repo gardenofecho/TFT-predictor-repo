@@ -157,4 +157,4 @@ def make_interactive_panel(observed_panel, price_wide, vix, dxy_ret, tnx_ret):
     panel["weekofyear"] = panel["date"].dt.isocalendar().week.astype(int)
     panel["sin_week"] = np.sin(2 * np.pi * panel["weekofyear"] / 52.0)
     panel["cos_week"] = np.cos(2 * np.pi * panel["weekofyear"] / 52.0)
-    return panel.sort_values(
+    return panel.sort_values(["ticker", "time_idx"]).reset_index(drop=True)
