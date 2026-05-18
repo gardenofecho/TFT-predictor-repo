@@ -1,1 +1,1 @@
-demo at: tft-predictor.stremlit.app
+See a demo @: tft-predictor.streamlit.app
